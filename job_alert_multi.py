@@ -6,6 +6,7 @@ from linkedin_jobs_scraper import LinkedinScraper
 from linkedin_jobs_scraper.events import Events, EventData
 from linkedin_jobs_scraper.query import Query, QueryOptions
 from selenium.webdriver.chrome.options import Options
+from linkedin_jobs_scraper.strategies.auth import AuthStrategy, AuthenticatedStrategy # <-- NEW IMPORTS
 
 # --- Configuration ---
 QUERIES = ["Performance Test Engineer", "Performance Engineer"]
@@ -45,11 +46,16 @@ def gather_jobs_with_scraper():
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     
-    # 2. Pass the authentication and browser options to the Scraper initialization
+    # 2. Configure Authentication Strategy
+    auth_strategy = AuthenticatedStrategy(
+        username=LINKEDIN_EMAIL,
+        password=LINKEDIN_PASSWORD
+    )
+
+    # 3. Initialize the Scraper
     scraper = LinkedinScraper(
         chrome_options=chrome_options, 
-        user=LINKEDIN_EMAIL,           # <-- Authenticated login
-        password=LINKEDIN_PASSWORD,    # <-- Authenticated login
+        auth_strategy=auth_strategy, # <-- PASSING THE CORRECT AUTH OBJECT
         page_load_timeout=30,
         slow_mo=1,
     )
