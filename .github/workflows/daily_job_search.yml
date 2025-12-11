@@ -25,13 +25,6 @@ jobs:
       # 3. Install Python Dependencies (Scraper, pandas, requests, selenium)
       - name: Install dependencies
         run: pip install linkedin-jobs-scraper pandas requests selenium
-          
-      # --- TEMPORARY DEBUG STEP: FINDING THE CORRECT CONSTANT NAME ---
-      # This step will print the list of available constants for TimeFilters
-      - name: Debug TimeFilters Constants
-        run: |
-          python -c "from linkedin_jobs_scraper.filters import TimeFilters; print(dir(TimeFilters))"
-      # --- END TEMPORARY DEBUG STEP ---
 
       # 4. Run search and email results (This step is expected to fail on the AttributeError)
       - name: Run search and email results
