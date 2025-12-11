@@ -1,17 +1,15 @@
 import os
 import smtplib
 from email.message import EmailMessage
+import requests
 import pandas as pd
-from jobspy.scrapers.linkedin import LinkedIn
-from jobspy.scrapers.indeed import Indeed
-from jobspy.scrapers.glassdoor import Glassdoor
-from jobspy.scrapers.dice import Dice
+from linkedin_jobs_scraper import LinkedinScraper
+from linkedin_jobs_scraper.events import Events, EventData
+from linkedin_jobs_scraper.query import Query, QueryOptions, QueryFilters
+from linkedin_jobs_scraper.filters import RelevanceFilters, TimeFilters, TypeFilters, ExperienceLevelFilters
 
 # --- Configuration ---
 QUERIES = ["Performance Test Engineer", "Performance Engineer"]
-SITES = [Indeed, Glassdoor, LinkedIn, Dice]
-# Adjust to your desired search radius (e.g., 10 miles from a major city)
-LOCATION = "" 
 RECIPIENT = os.getenv("RECIPIENT_EMAIL")
 SENDER = os.getenv("SENDER_EMAIL")
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
@@ -19,38 +17,54 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
 
-def gather_jobs_with_jobspy():
-    """Uses jobspy to fetch and aggregate jobs across all sites."""
-    all_jobs_df = pd.DataFrame()
+# Global list to store job data
+JOB_LIST = []
+
+def on_data(data: EventData):
+    """Callback function to store job data as it is scraped."""
+    JOB_LIST.append({
+        "site": "LinkedIn", 
+        "title": data.title, 
+        "company": data.company, 
+        "link": data.link
+    })
+
+def on_error(error):
+    print(f"Scraper Error: {error}")
+
+def gather_jobs_with_scraper():
+    """Uses the dedicated LinkedIn scraper library to fetch jobs."""
+    global JOB_LIST
+    JOB_LIST = []  # Clear previous results
+    
+    scraper = LinkedinScraper(
+        # Note: You can't run this headlessly on GitHub Actions without complex setup, 
+        # but this library is more stable than jobspy even in this simple mode.
+        chrome_options=['--headless', '--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'],
+        page_load_timeout=30,
+        slow_mo=1,
+    )
+    
+    scraper.on(Events.DATA, on_data)
+    scraper.on(Events.ERROR, on_error)
+    
+    queries = []
     for query in QUERIES:
-        print(f"Searching for: {query}")
-        try:
-            # JobSpy's search function handles all sites concurrently
-            jobs = jobspy.search(
-                sites=SITES,
-                search_term=query,
-                location=LOCATION,
-                # Fetching jobs posted in the last 24 hours (a good daily setting)
-                # NOTE: This filter is approximate based on the site.
-                results_wanted=100, 
-                country_filter='usa'
+        queries.append(Query(
+            query=query,
+            options=QueryOptions(
+                # Look at jobs posted in the last 24 hours
+                time_filter=TimeFilters.PAST_24H, 
+                relevance_filter=RelevanceFilters.RECENT,
+                limit=100
             )
-            # Add to the main DataFrame
-            all_jobs_df = pd.concat([all_jobs_df, jobs], ignore_index=True)
-            
-        except Exception as e:
-            print(f"JobSpy search failed for {query}: {e}")
-            
-    # Clean up and deduplicate results
-    if all_jobs_df.empty:
-        return []
+        ))
     
-    # Simple deduplication based on job title and company
-    all_jobs_df.drop_duplicates(subset=['title', 'company'], inplace=True, keep='first')
+    print(f"Starting scrape for {len(queries)} queries...")
+    scraper.run(queries)
     
-    # Convert DataFrame rows to a list of job dictionaries for emailing
-    job_list = all_jobs_df[['site', 'title', 'company', 'link']].to_dict('records')
-    return job_list
+    # We will use this list directly for emailing
+    return JOB_LIST
 
 def compose_email(jobs):
     """Creates the email message."""
@@ -58,8 +72,12 @@ def compose_email(jobs):
         body = "No new jobs found for Performance Test Engineer / Performance Engineer."
     else:
         lines = ["Found the following new jobs:\n"]
-        for j in jobs:
-            # Format the output for a clean email text body
+        # Deduplicate the list just in case of overlaps or duplicate scraping
+        df = pd.DataFrame(jobs)
+        df.drop_duplicates(subset=['title', 'company'], inplace=True)
+        jobs_deduped = df.to_dict('records')
+        
+        for j in jobs_deduped:
             lines.append(f"Source: {j['site']}")
             lines.append(f"Title: {j['title']}")
             lines.append(f"Company: {j['company']}")
@@ -67,7 +85,7 @@ def compose_email(jobs):
         body = "\n".join(lines)
 
     msg = EmailMessage()
-    msg["Subject"] = f"Daily Performance-Engineer Job Search Results ({len(jobs)} New Jobs)"
+    msg["Subject"] = f"Daily Performance-Engineer Job Search Results ({len(jobs_deduped)} New Jobs)"
     msg["From"] = SENDER
     msg["To"] = RECIPIENT
     msg.set_content(body)
@@ -85,7 +103,7 @@ def send_email(msg):
         print(f"Email sending failed: {e}")
 
 def main():
-    jobs = gather_jobs_with_jobspy()
+    jobs = gather_jobs_with_scraper()
     msg = compose_email(jobs)
     send_email(msg)
     print(f"Finished. Processed {len(jobs)} job(s).")
