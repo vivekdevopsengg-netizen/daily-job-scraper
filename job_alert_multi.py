@@ -2,11 +2,9 @@ import os
 import smtplib
 from email.message import EmailMessage
 import pandas as pd
-# Note: requests and selenium are installed via the YAML file, but not explicitly imported here.
 from linkedin_jobs_scraper import LinkedinScraper
 from linkedin_jobs_scraper.events import Events, EventData
 from linkedin_jobs_scraper.query import Query, QueryOptions
-from linkedin_jobs_scraper.filters import RelevanceFilters, TimeFilters
 from selenium.webdriver.chrome.options import Options
 
 # --- Configuration ---
@@ -60,9 +58,9 @@ def gather_jobs_with_scraper():
         queries.append(Query(
             query=query,
             options=QueryOptions(
-                # time_filter argument removed to fix TypeError
-                relevance_filter=RelevanceFilters.RECENT,
-                limit=100
+                # time_filter and relevance_filter removed to fix TypeErrors.
+                # Only the required limit remains.
+                limit=100 
             )
         ))
     
@@ -82,37 +80,4 @@ def compose_email(jobs):
         df.drop_duplicates(subset=['title', 'company'], inplace=True)
         jobs_deduped = df.to_dict('records')
         
-        lines = ["Found the following new jobs:\n"]
-        for j in jobs_deduped:
-            lines.append(f"Source: {j['site']}")
-            lines.append(f"Title: {j['title']}")
-            lines.append(f"Company: {j['company']}")
-            lines.append(f"Link: {j['link']}\n" + "-"*30 + "\n")
-        body = "\n".join(lines)
-
-    msg = EmailMessage()
-    msg["Subject"] = f"Daily Performance-Engineer Job Search Results ({len(jobs_deduped)} New Jobs)"
-    msg["From"] = SENDER
-    msg["To"] = RECIPIENT
-    msg.set_content(body)
-    return msg
-
-def send_email(msg):
-    """Sends the email using SMTP."""
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASS)
-            s.send_message(msg)
-            print("Email sent successfully.")
-    except Exception as e:
-        print(f"Email sending failed: {e}")
-
-def main():
-    jobs = gather_jobs_with_scraper()
-    msg = compose_email(jobs)
-    send_email(msg)
-    print(f"Finished. Processed {len(jobs)} job(s).")
-
-if __name__ == "__main__":
-    main()
+        lines = ["Found the following new jobs
