@@ -80,4 +80,4 @@ def compose_email(jobs):
         df.drop_duplicates(subset=['title', 'company'], inplace=True)
         jobs_deduped = df.to_dict('records')
         
-        lines = ["Found the following new jobs
+        lines = ["Found the following new jobs\n"] # <-- ADD THE CLOSING QUOTE AND NEWLINE
