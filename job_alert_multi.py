@@ -48,7 +48,7 @@ def gather_jobs_with_scraper():
     
     # 2. Configure Authentication Strategy
     auth_strategy = AuthenticatedStrategy(
-        user=LINKEDIN_EMAIL, # <-- FIX: Changed 'username' to 'user'
+        email=LINKEDIN_EMAIL, # <-- FIX: Changed 'user' to 'email'
         password=LINKEDIN_PASSWORD
     )
 
