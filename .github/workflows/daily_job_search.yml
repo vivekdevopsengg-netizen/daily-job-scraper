@@ -2,7 +2,7 @@ name: Daily Job Search Alert
 
 on:
   schedule:
-    # 05:00 UTC = 00:00 AM EST (for winter/standard time). 
+    # 05:00 UTC = 00:00 AM EST (for standard time). 
     - cron: "0 5 * * *" 
   workflow_dispatch: {} # Allows manual triggering for testing
 
@@ -12,16 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # 1. Set up Python 3.11
-      - name: Set up Python 3.11
+      # 1. Set up Python 3.10 (Stable version)
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: "3.10"
           
-      # 2. Combined Installation and Execution Step (Using Direct Paths)
-      # This step installs dependencies and runs the script using the explicit executable 
-      # paths inside the venv, which guarantees no path confusion.
-      - name: Run Job Search Script
+      # 2. Install Dependencies Directly (Relies on setup-python to manage the environment PATH)
+      - name: Install dependencies
+        # Installing the packages directly into the environment set up above.
+        run: pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
+          
+      # 3. Run search and email results (Standard Execution)
+      - name: Run search and email results
         env:
           # Your secrets are passed to the script via environment variables
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
@@ -30,13 +33,5 @@ jobs:
           SMTP_PORT: ${{ secrets.SMTP_PORT }} 
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-        run: |
-          # Create a virtual environment
-          python -m venv venv
-          
-          # Install dependencies using the specific PIP executable inside the venv
-          ./venv/bin/pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
-          
-          # Run the script using the specific PYTHON executable inside the venv
-          # This direct call resolves the ModuleNotFoundError permanently.
-          ./venv/bin/python job_alert_multi.py
+        # Standard Python execution command
+        run: python job_alert_multi.py
