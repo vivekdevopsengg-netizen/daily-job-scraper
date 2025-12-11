@@ -2,11 +2,12 @@ import os
 import smtplib
 from email.message import EmailMessage
 import pandas as pd
+# Note: requests and selenium are installed via the YAML file, but not explicitly imported here.
 from linkedin_jobs_scraper import LinkedinScraper
 from linkedin_jobs_scraper.events import Events, EventData
-from linkedin_jobs_scraper.query import Query, QueryOptions, QueryFilters
+from linkedin_jobs_scraper.query import Query, QueryOptions
 from linkedin_jobs_scraper.filters import RelevanceFilters, TimeFilters
-from selenium.webdriver.chrome.options import Options # <-- NEW REQUIRED IMPORT
+from selenium.webdriver.chrome.options import Options
 
 # --- Configuration ---
 QUERIES = ["Performance Test Engineer", "Performance Engineer"]
@@ -46,7 +47,7 @@ def gather_jobs_with_scraper():
     
     # 2. Pass the object to the Scraper initialization
     scraper = LinkedinScraper(
-        chrome_options=chrome_options, # <-- NOW PASSING THE CORRECT OBJECT TYPE
+        chrome_options=chrome_options, 
         page_load_timeout=30,
         slow_mo=1,
     )
@@ -59,8 +60,7 @@ def gather_jobs_with_scraper():
         queries.append(Query(
             query=query,
             options=QueryOptions(
-                # Look at jobs posted in the last 24 hours
-                time_filter=TimeFilters.DAY, 
+                # time_filter argument removed to fix TypeError
                 relevance_filter=RelevanceFilters.RECENT,
                 limit=100
             )
