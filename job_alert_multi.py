@@ -15,6 +15,8 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
+LINKEDIN_EMAIL = os.getenv("LINKEDIN_EMAIL")
+LINKEDIN_PASSWORD = os.getenv("LINKEDIN_PASSWORD")
 
 # Global list to store job data
 JOB_LIST = []
@@ -43,9 +45,11 @@ def gather_jobs_with_scraper():
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     
-    # 2. Pass the object to the Scraper initialization
+    # 2. Pass the authentication and browser options to the Scraper initialization
     scraper = LinkedinScraper(
         chrome_options=chrome_options, 
+        user=LINKEDIN_EMAIL,           # <-- Authenticated login
+        password=LINKEDIN_PASSWORD,    # <-- Authenticated login
         page_load_timeout=30,
         slow_mo=1,
     )
@@ -71,7 +75,6 @@ def gather_jobs_with_scraper():
 def compose_email(jobs):
     """Creates the email message."""
     if not jobs:
-        # If zero jobs were found, send this message
         body = "No new jobs found for Performance Test Engineer / Performance Engineer. (The scraper ran successfully but returned zero results)."
         jobs_deduped = []
     else:
