@@ -2,7 +2,8 @@ name: Daily Job Search Alert
 
 on:
   schedule:
-    # 05:00 UTC = 00:00 AM EST (for standard time).
+    # 05:00 UTC = 00:00 AM EST (for winter/standard time). 
+    # Change to "0 4 * * *" during Daylight Saving Time (DST).
     - cron: "0 5 * * *" 
   workflow_dispatch: {} # Allows manual triggering for testing
 
@@ -11,21 +12,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
+      
+      # 1. Set up Python 3.11
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11" 
-
+          python-version: "3.11"
+          
+      # 2. Create and activate a Virtual Environment
+      - name: Install Virtual Environment
+        run: |
+          # Create the virtual environment in the 'venv' folder
+          python -m venv venv
+          # Activate the virtual environment
+          source venv/bin/activate
+          
+      # 3. Install dependencies INTO the Virtual Environment
       - name: Install dependencies
-        # We explicitly install all required packages to ensure all optional dependencies are present
-        run: pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
-
+        run: |
+          source venv/bin/activate
+          # Explicitly install jobspy and its dependencies, plus pandas, into the venv
+          pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
+          
+      # 4. Run search and email results
       - name: Run search and email results
         env:
+          # Your secrets are passed to the script via environment variables
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }} 
           SMTP_PORT: ${{ secrets.SMTP_PORT }} 
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-        run: python job_alert_multi.py
+        run: |
+          # Re-activate the environment to ensure Python finds jobspy
+          source venv/bin/activate
+          python job_alert_multi.py
