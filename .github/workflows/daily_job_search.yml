@@ -14,12 +14,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10" 
+          python-version: "3.11" 
 
       - name: Install dependencies
-        # We install 'jobspy' with its optional dependencies (like 'linkedin') 
-        # and 'pandas' directly, using the content from requirements.txt as a guide.
-        run: pip install jobspy[all] pandas
+        # We explicitly install all required packages to ensure all optional dependencies are present
+        run: pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
 
       - name: Run search and email results
         env:
