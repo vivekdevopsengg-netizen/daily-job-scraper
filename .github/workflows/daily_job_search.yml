@@ -3,7 +3,6 @@ name: Daily Job Search Alert
 on:
   schedule:
     # 05:00 UTC = 00:00 AM EST (for winter/standard time). 
-    # Change to "0 4 * * *" during Daylight Saving Time (DST).
     - cron: "0 5 * * *" 
   workflow_dispatch: {} # Allows manual triggering for testing
 
@@ -19,8 +18,9 @@ jobs:
         with:
           python-version: "3.11"
           
-      # 2. Combined Installation and Execution Step
-      # This step forces all environment actions (venv, install, run) into a single shell session.
+      # 2. Combined Installation and Execution Step (Using Direct Paths)
+      # This step installs dependencies and runs the script using the explicit executable 
+      # paths inside the venv, which guarantees no path confusion.
       - name: Run Job Search Script
         env:
           # Your secrets are passed to the script via environment variables
@@ -34,12 +34,9 @@ jobs:
           # Create a virtual environment
           python -m venv venv
           
-          # Activate the virtual environment
-          source venv/bin/activate
+          # Install dependencies using the specific PIP executable inside the venv
+          ./venv/bin/pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
           
-          # Install dependencies into the activated environment
-          # Using the explicit installation command for maximum reliability
-          pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
-          
-          # Run the script using the activated environment's python interpreter
-          python job_alert_multi.py
+          # Run the script using the specific PYTHON executable inside the venv
+          # This direct call resolves the ModuleNotFoundError permanently.
+          ./venv/bin/python job_alert_multi.py
