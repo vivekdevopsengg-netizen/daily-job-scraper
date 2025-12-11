@@ -22,10 +22,10 @@ jobs:
         with:
           python-version: "3.10"
           
-      # 3. Install Python Dependencies (New scraper, pandas, and requests)
+      # 3. Install Python Dependencies (New scraper, pandas, requests, and selenium)
       - name: Install dependencies
-        # We add requests and seleniumbase (a dependency for the scraper)
-        run: pip install linkedin-jobs-scraper pandas requests seleniumbase
+        # We add selenium, which provides the necessary Options class
+        run: pip install linkedin-jobs-scraper pandas requests selenium
           
       # 4. Run search and email results (Standard Execution)
       - name: Run search and email results
