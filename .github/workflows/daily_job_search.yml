@@ -19,23 +19,9 @@ jobs:
         with:
           python-version: "3.11"
           
-      # 2. Create and activate a Virtual Environment
-      - name: Install Virtual Environment
-        run: |
-          # Create the virtual environment in the 'venv' folder
-          python -m venv venv
-          # Activate the virtual environment
-          source venv/bin/activate
-          
-      # 3. Install dependencies INTO the Virtual Environment
-      - name: Install dependencies
-        run: |
-          source venv/bin/activate
-          # Explicitly install jobspy and its dependencies, plus pandas, into the venv
-          pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
-          
-      # 4. Run search and email results
-      - name: Run search and email results
+      # 2. Combined Installation and Execution Step
+      # This step forces all environment actions (venv, install, run) into a single shell session.
+      - name: Run Job Search Script
         env:
           # Your secrets are passed to the script via environment variables
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
@@ -45,6 +31,15 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
         run: |
-          # Re-activate the environment to ensure Python finds jobspy
+          # Create a virtual environment
+          python -m venv venv
+          
+          # Activate the virtual environment
           source venv/bin/activate
+          
+          # Install dependencies into the activated environment
+          # Using the explicit installation command for maximum reliability
+          pip install jobspy[linkedin,indeed,glassdoor,dice] pandas
+          
+          # Run the script using the activated environment's python interpreter
           python job_alert_multi.py
