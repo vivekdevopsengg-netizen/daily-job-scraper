@@ -6,7 +6,7 @@ from linkedin_jobs_scraper import LinkedinScraper
 from linkedin_jobs_scraper.events import Events, EventData
 from linkedin_jobs_scraper.query import Query, QueryOptions
 from selenium.webdriver.chrome.options import Options
-from linkedin_jobs_scraper.strategies.auth import AuthStrategy, AuthenticatedStrategy # <-- NEW IMPORTS
+from linkedin_jobs_scraper.strategies import AuthenticatedStrategy # <-- FIX: SIMPLIFIED IMPORT
 
 # --- Configuration ---
 QUERIES = ["Performance Test Engineer", "Performance Engineer"]
