@@ -60,7 +60,7 @@ def gather_jobs_with_scraper():
             query=query,
             options=QueryOptions(
                 # Look at jobs posted in the last 24 hours
-                time_filter=TimeFilters.PAST_24H, 
+                time_filter=TimeFilters.PAST_DAY, 
                 relevance_filter=RelevanceFilters.RECENT,
                 limit=100
             )
