@@ -6,7 +6,7 @@ from linkedin_jobs_scraper import LinkedinScraper
 from linkedin_jobs_scraper.events import Events, EventData
 from linkedin_jobs_scraper.query import Query, QueryOptions
 from selenium.webdriver.chrome.options import Options
-from linkedin_jobs_scraper.strategies import AuthenticatedStrategy # Note: This import was confirmed.
+from linkedin_jobs_scraper.strategies import AuthenticatedStrategy 
 
 # --- Configuration ---
 QUERIES = ["Performance Test Engineer", "Performance Engineer"]
@@ -46,10 +46,14 @@ def gather_jobs_with_scraper():
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     
-    # 2. Configure Authentication Strategy (Using POSITIONAL arguments as keywords failed)
+    # Defensive check for missing secrets
+    if not LINKEDIN_EMAIL or not LINKEDIN_PASSWORD:
+        raise ValueError("LinkedIn email or password secrets are missing or empty.")
+
+    # 2. Configure Authentication Strategy (Trying 'email' keyword)
     auth_strategy = AuthenticatedStrategy(
-        LINKEDIN_EMAIL,    # <-- FIX: Positional argument 1
-        LINKEDIN_PASSWORD  # <-- FIX: Positional argument 2
+        email=LINKEDIN_EMAIL, 
+        password=LINKEDIN_PASSWORD
     )
 
     # 3. Initialize the Scraper
