@@ -50,10 +50,11 @@ def gather_jobs_with_scraper():
     if not LINKEDIN_EMAIL or not LINKEDIN_PASSWORD:
         raise ValueError("LinkedIn email or password secrets are missing or empty.")
 
-    # 2. Configure Authentication Strategy (Trying 'email' keyword)
+    # 2. Configure Authentication Strategy (Using positional args + mandatory third arg)
     auth_strategy = AuthenticatedStrategy(
-        email=LINKEDIN_EMAIL, 
-        password=LINKEDIN_PASSWORD
+        LINKEDIN_EMAIL,    # Positional argument 1
+        LINKEDIN_PASSWORD, # Positional argument 2
+        30                 # FIX: Mandatory third positional argument (assuming timeout)
     )
 
     # 3. Initialize the Scraper
