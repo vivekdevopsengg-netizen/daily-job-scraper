@@ -15,7 +15,7 @@ SEARCH_TERMS = [
 ]
 
 LOCATION = "United States"
-#REMOTE_ONLY = True
+REMOTE_ONLY = True
 
 # STRICT TITLE ALLOW LIST (case-insensitive regex)
 ALLOWED_TITLE_PATTERNS = [
