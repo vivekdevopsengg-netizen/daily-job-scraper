@@ -15,7 +15,7 @@ LOCATION = "United States"
 
 REMOTE_ONLY = True
 SENIOR_KEYWORDS = ["senior", "sr", "lead", "staff", "principal"]
-MIN_SALARY = 120000  # USD (optional)
+MIN_SALARY = 120000  # USD
 
 RECIPIENT = os.getenv("RECIPIENT_EMAIL")
 SENDER = os.getenv("SENDER_EMAIL")
@@ -37,7 +37,7 @@ def gather_jobs():
                 "linkedin",
                 "glassdoor",
                 "dice",
-                "google"      # Google Jobs → includes Workday postings
+                "google"   # Google Jobs → includes Workday
             ],
             search_term=term,
             location=LOCATION,
@@ -47,29 +47,23 @@ def gather_jobs():
         all_results.append(df)
 
     df = pd.concat(all_results, ignore_index=True)
-
-    # Normalize columns safely
     df.columns = [c.lower() for c in df.columns]
 
-    # ---------------- FILTERS ----------------
+    # -------- Filters --------
     if REMOTE_ONLY and "is_remote" in df.columns:
         df = df[df["is_remote"] == True]
 
-    # Senior-level filter
     df = df[df["title"].str.lower().str.contains("|".join(SENIOR_KEYWORDS), na=False)]
 
-    # Salary filter (if available)
     if "min_salary" in df.columns:
         df = df[df["min_salary"].fillna(0) >= MIN_SALARY]
 
-    # Explicit Workday tagging
+    # Workday tagging
     df["source"] = df["job_url"].apply(
         lambda x: "Workday" if "workdayjobs" in str(x).lower() else "Job Board"
     )
 
-    # Deduplicate
     df.drop_duplicates(subset=["title", "company", "job_url"], inplace=True)
-
     return df
 
 
@@ -102,14 +96,11 @@ def build_html_email(df: pd.DataFrame) -> str:
     <html>
     <body>
         <h2>Daily Performance Engineer Jobs</h2>
-        <p>
-            Filters applied:
-            <ul>
-                <li>Remote only</li>
-                <li>Senior / Lead / Staff roles</li>
-                <li>Salary ≥ ${MIN_SALARY:,}</li>
-            </ul>
-        </p>
+        <ul>
+            <li>Remote only</li>
+            <li>Senior / Lead / Staff</li>
+            <li>Salary ≥ ${MIN_SALARY:,}</li>
+        </ul>
         <table border="1" cellpadding="8" cellspacing="0">
             <tr>
                 <th>Source</th>
@@ -119,8 +110,7 @@ def build_html_email(df: pd.DataFrame) -> str:
             </tr>
             {rows}
         </table>
-        <br/>
-        <p>Total jobs found: <b>{len(df)}</b></p>
+        <p><b>Total jobs:</b> {len(df)}</p>
     </body>
     </html>
     """
@@ -131,7 +121,7 @@ def send_email(html_body, count):
     msg["Subject"] = f"Daily Performance Engineer Jobs ({count})"
     msg["From"] = SENDER
     msg["To"] = RECIPIENT
-    msg.set_content("Your email client does not support HTML.")
+    msg.set_content("HTML email required")
     msg.add_alternative(html_body, subtype="html")
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
