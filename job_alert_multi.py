@@ -71,7 +71,7 @@ def gather_jobs():
             site_name=[
                 "linkedin",
                 "indeed",
-                "glassdoor",
+                #"glassdoor",
                 "google"
             ],
             search_term=term,
