@@ -36,7 +36,6 @@ def gather_jobs():
                 "indeed",
                 "linkedin",
                 "glassdoor",
-                "dice",
                 "google"   # Google Jobs → includes Workday
             ],
             search_term=term,
