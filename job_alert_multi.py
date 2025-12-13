@@ -11,14 +11,15 @@ SEARCH_TERMS = [
     "Performance Engineer",
     "Performance Architect",
     "Performance Test Lead",
-    "Performance" # <-- ADDED: General search term for broader discovery
+    "Performance" 
 ]
 
 LOCATION = "United States"
-REMOTE_ONLY = True
+REMOTE_ONLY = True # <-- CONSIDER CHANGING TO FALSE IF YOU WANT HYBRID/IN-OFFICE JOBS
 
 # STRICT TITLE ALLOW LIST (case-insensitive regex)
 ALLOWED_TITLE_PATTERNS = [
+    # Existing Engineering/Test roles
     r"performance test engineer",
     r"performance engineer",
     r"sr\.?\s*performance test engineer",
@@ -26,7 +27,15 @@ ALLOWED_TITLE_PATTERNS = [
     r"performance architect",
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
-    r"performance test lead", # FIX: Syntax error corrected (removed extra 'r')
+    r"performance test lead", 
+    
+    # NEW: Broadened patterns to catch Specialist, Consultant, and acronyms (SMTS)
+    r"performance\s*specialist",      # Catches "Client Performance Specialist"
+    r"performance\s*consultant",
+    r"performance\s*smts",            # Catches acronyms like SMTS
+    r"performance\s*mts",
+    
+    # General catch-all patterns (keep these)
     r"performance.*engineer",
     r"engineer.*performance",
     r"performance test",
@@ -63,20 +72,22 @@ def gather_jobs():
                 "linkedin",
                 "indeed",
                 "glassdoor",
-                "google"  # Google Jobs → includes Workday + Dice mirrors
+                "google"
             ],
             search_term=term,
             location=LOCATION,
-            results_wanted=100,
-            hours_old=24,
-            # Jobspy will automatically look for LINKEDIN_EMAIL and LINKEDIN_PASSWORD in the environment
+            results_wanted=200, # <-- CHANGE 1: Increased results per search term
+            hours_old=72,      # <-- CHANGE 2: Relaxed from 24h to 72h (3 days)
         )
         # Handle case where scrape_jobs returns None
         if df is not None:
             all_results.append(df)
+            
+# ... (rest of the functions remain the same)
+# (Your `build_html_email`, `send_email`, and `main` functions are unchanged)
 
     if not all_results:
-        return pd.DataFrame() # Return empty DataFrame if no results were ever found
+        return pd.DataFrame() 
 
     df = pd.concat(all_results, ignore_index=True)
     df.columns = [c.lower() for c in df.columns]
@@ -87,9 +98,7 @@ def gather_jobs():
 
     # -------- STRICT TITLE FILTER --------
     title_regex = "|".join(ALLOWED_TITLE_PATTERNS)
-    # Ensure title column exists before filtering
     if "title" in df.columns:
-        # Note: The ALLOWED_TITLE_PATTERNS already ensures titles contain the word "performance"
         df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
 
     # -------- Source tagging --------
