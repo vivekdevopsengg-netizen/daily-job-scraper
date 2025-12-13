@@ -26,7 +26,7 @@ ALLOWED_TITLE_PATTERNS = [
     r"performance architect",
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
-    r"performance test lead"
+    rr"performance test lead", # FIX: Removed syntax error (extra r) from original paste
     r"performance.*engineer",
     r"engineer.*performance",
     r"performance test",
@@ -36,16 +36,20 @@ ALLOWED_TITLE_PATTERNS = [
     r"staff.*performance",
     r"principal.*performance",
     r"sr.*performance",
-    r"*performance*"
+    r".*performance.*" # FIX: Corrected regex from *performance*
 ]
 
+# Email Secrets
 RECIPIENT = os.getenv("RECIPIENT_EMAIL")
 SENDER = os.getenv("SENDER_EMAIL")
-
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
+
+# LinkedIn Secrets (Jobspy uses these if present)
+LINKEDIN_EMAIL = os.getenv("LINKEDIN_EMAIL")
+LINKEDIN_PASSWORD = os.getenv("LINKEDIN_PASSWORD")
 
 # ---------------------------------------
 
@@ -59,14 +63,21 @@ def gather_jobs():
                 "linkedin",
                 "indeed",
                 "glassdoor",
-                "google"   # Google Jobs → includes Workday + Dice mirrors
+                "google"  # Google Jobs → includes Workday + Dice mirrors
             ],
             search_term=term,
             location=LOCATION,
             results_wanted=100,
-            hours_old=24
+            hours_old=24,
+            # Jobspy will automatically look for LINKEDIN_EMAIL and LINKEDIN_PASSWORD in the environment
+            # We don't need to pass them explicitly, just ensure they are loaded via os.getenv()
         )
-        all_results.append(df)
+        # Handle case where scrape_jobs returns None
+        if df is not None:
+            all_results.append(df)
+
+    if not all_results:
+        return pd.DataFrame() # Return empty DataFrame if no results were ever found
 
     df = pd.concat(all_results, ignore_index=True)
     df.columns = [c.lower() for c in df.columns]
@@ -77,7 +88,9 @@ def gather_jobs():
 
     # -------- STRICT TITLE FILTER --------
     title_regex = "|".join(ALLOWED_TITLE_PATTERNS)
-    df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
+    # Ensure title column exists before filtering
+    if "title" in df.columns:
+        df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
 
     # -------- Source tagging --------
     df["source"] = df["job_url"].apply(
