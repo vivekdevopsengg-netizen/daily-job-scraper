@@ -10,11 +10,12 @@ SEARCH_TERMS = [
     "Performance Test Engineer",
     "Performance Engineer",
     "Performance Architect",
-    "Performance Test Lead"
+    "Performance Test Lead",
+    "Performance"
 ]
 
 LOCATION = "United States"
-REMOTE_ONLY = True
+#REMOTE_ONLY = True
 
 # STRICT TITLE ALLOW LIST (case-insensitive regex)
 ALLOWED_TITLE_PATTERNS = [
@@ -34,7 +35,8 @@ ALLOWED_TITLE_PATTERNS = [
     r"lead.*performance",
     r"staff.*performance",
     r"principal.*performance",
-    r"sr.*performance"
+    r"sr.*performance",
+    r"*performance*"
 ]
 
 RECIPIENT = os.getenv("RECIPIENT_EMAIL")
