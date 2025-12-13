@@ -11,7 +11,7 @@ SEARCH_TERMS = [
     "Performance Engineer",
     "Performance Architect",
     "Performance Test Lead",
-    "Performance"
+    "Performance" # <-- ADDED: General search term for broader discovery
 ]
 
 LOCATION = "United States"
@@ -26,7 +26,7 @@ ALLOWED_TITLE_PATTERNS = [
     r"performance architect",
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
-    rr"performance test lead", # FIX: Removed syntax error (extra r) from original paste
+    r"performance test lead", # FIX: Syntax error corrected (removed extra 'r')
     r"performance.*engineer",
     r"engineer.*performance",
     r"performance test",
@@ -36,7 +36,7 @@ ALLOWED_TITLE_PATTERNS = [
     r"staff.*performance",
     r"principal.*performance",
     r"sr.*performance",
-    r".*performance.*" # FIX: Corrected regex from *performance*
+    r".*performance.*" 
 ]
 
 # Email Secrets
@@ -70,7 +70,6 @@ def gather_jobs():
             results_wanted=100,
             hours_old=24,
             # Jobspy will automatically look for LINKEDIN_EMAIL and LINKEDIN_PASSWORD in the environment
-            # We don't need to pass them explicitly, just ensure they are loaded via os.getenv()
         )
         # Handle case where scrape_jobs returns None
         if df is not None:
@@ -90,6 +89,7 @@ def gather_jobs():
     title_regex = "|".join(ALLOWED_TITLE_PATTERNS)
     # Ensure title column exists before filtering
     if "title" in df.columns:
+        # Note: The ALLOWED_TITLE_PATTERNS already ensures titles contain the word "performance"
         df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
 
     # -------- Source tagging --------
