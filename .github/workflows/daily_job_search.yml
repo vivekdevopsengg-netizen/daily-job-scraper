@@ -2,41 +2,29 @@ name: Daily Job Search Alert
 
 on:
   schedule:
-    # 05:00 UTC = 00:00 AM EST (for standard time). 
-    - cron: "0 5 * * *" 
-  workflow_dispatch: {} # Allows manual triggering for testing
+    - cron: "0 5 * * *" # 12:00 AM EST
+  workflow_dispatch:
 
 jobs:
   job-search:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      # 1. Install System Dependencies (Required for the scraper browser)
-      - name: Install System Dependencies
-        run: sudo apt-get update && sudo apt-get install -y chromium-browser
-      
-      # 2. Set up Python 3.10
-      - name: Set up Python 3.10
+
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
-          
-      # 3. Install Python Dependencies (Scraper, pandas, requests, selenium)
+
       - name: Install dependencies
-        run: pip install linkedin-jobs-scraper pandas requests selenium
-          
-      # 4. Run search and email results (Passing all secrets including LinkedIn login)
-      - name: Run search and email results
+        run: pip install -r requirements.txt
+
+      - name: Run job search
         env:
-          # Email Secrets
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }} 
-          SMTP_PORT: ${{ secrets.SMTP_PORT }} 
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          # LinkedIn Login Secrets
-          LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
-          LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
         run: python job_alert_multi.py
