@@ -5,17 +5,28 @@ import pandas as pd
 from jobspy import scrape_jobs
 
 # ---------------- CONFIG ----------------
+
 SEARCH_TERMS = [
     "Performance Test Engineer",
     "Performance Engineer",
-    "Senior Performance Engineer"
+    "Performance Architect",
+    "Performance Test Lead"
 ]
 
 LOCATION = "United States"
-
 REMOTE_ONLY = True
-SENIOR_KEYWORDS = ["senior", "sr", "lead", "staff", "principal"]
-MIN_SALARY = 120000  # USD
+
+# STRICT TITLE ALLOW LIST (case-insensitive regex)
+ALLOWED_TITLE_PATTERNS = [
+    r"performance test engineer",
+    r"performance engineer",
+    r"sr\.?\s*performance test engineer",
+    r"senior performance test engineer",
+    r"performance architect",
+    r"lead\s*-?\s*performance test engineer",
+    r"lead performance test engineer",
+    r"performance test lead"
+]
 
 RECIPIENT = os.getenv("RECIPIENT_EMAIL")
 SENDER = os.getenv("SENDER_EMAIL")
@@ -24,6 +35,7 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
+
 # ---------------------------------------
 
 
@@ -33,14 +45,14 @@ def gather_jobs():
     for term in SEARCH_TERMS:
         df = scrape_jobs(
             site_name=[
-                "indeed",
                 "linkedin",
+                "indeed",
                 "glassdoor",
-                "google"   # Google Jobs → includes Workday
+                "google"   # Google Jobs → includes Workday + Dice mirrors
             ],
             search_term=term,
             location=LOCATION,
-            results_wanted=80,
+            results_wanted=100,
             hours_old=24
         )
         all_results.append(df)
@@ -48,21 +60,24 @@ def gather_jobs():
     df = pd.concat(all_results, ignore_index=True)
     df.columns = [c.lower() for c in df.columns]
 
-    # -------- Filters --------
+    # -------- Remote filter --------
     if REMOTE_ONLY and "is_remote" in df.columns:
         df = df[df["is_remote"] == True]
 
-    df = df[df["title"].str.lower().str.contains("|".join(SENIOR_KEYWORDS), na=False)]
+    # -------- STRICT TITLE FILTER --------
+    title_regex = "|".join(ALLOWED_TITLE_PATTERNS)
+    df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
 
-    if "min_salary" in df.columns:
-        df = df[df["min_salary"].fillna(0) >= MIN_SALARY]
-
-    # Workday tagging
+    # -------- Source tagging --------
     df["source"] = df["job_url"].apply(
-        lambda x: "Workday" if "workdayjobs" in str(x).lower() else "Job Board"
+        lambda x: "Workday"
+        if "workdayjobs" in str(x).lower()
+        else "LinkedIn/Other"
     )
 
+    # Deduplicate
     df.drop_duplicates(subset=["title", "company", "job_url"], inplace=True)
+
     return df
 
 
@@ -71,7 +86,7 @@ def build_html_email(df: pd.DataFrame) -> str:
         return """
         <html>
             <body>
-                <h3>No new Performance Engineering jobs found in the last 24 hours.</h3>
+                <h3>No matching Performance Engineering jobs found in the last 24 hours.</h3>
             </body>
         </html>
         """
@@ -94,12 +109,8 @@ def build_html_email(df: pd.DataFrame) -> str:
     return f"""
     <html>
     <body>
-        <h2>Daily Performance Engineer Jobs</h2>
-        <ul>
-            <li>Remote only</li>
-            <li>Senior / Lead / Staff</li>
-            <li>Salary ≥ ${MIN_SALARY:,}</li>
-        </ul>
+        <h2>Daily Performance Engineering Job Alerts</h2>
+        <p><b>Titles filtered strictly as requested</b></p>
         <table border="1" cellpadding="8" cellspacing="0">
             <tr>
                 <th>Source</th>
@@ -117,7 +128,7 @@ def build_html_email(df: pd.DataFrame) -> str:
 
 def send_email(html_body, count):
     msg = EmailMessage()
-    msg["Subject"] = f"Daily Performance Engineer Jobs ({count})"
+    msg["Subject"] = f"Performance Engineering Jobs ({count})"
     msg["From"] = SENDER
     msg["To"] = RECIPIENT
     msg.set_content("HTML email required")
