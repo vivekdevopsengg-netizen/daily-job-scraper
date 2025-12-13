@@ -26,6 +26,15 @@ ALLOWED_TITLE_PATTERNS = [
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
     r"performance test lead"
+    r"performance.*engineer",
+    r"engineer.*performance",
+    r"performance test",
+    r"performance architect",
+    r"performance lead",
+    r"lead.*performance",
+    r"staff.*performance",
+    r"principal.*performance",
+    r"sr.*performance"
 ]
 
 RECIPIENT = os.getenv("RECIPIENT_EMAIL")
