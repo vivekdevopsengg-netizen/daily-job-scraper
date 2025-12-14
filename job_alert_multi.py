@@ -11,15 +11,15 @@ SEARCH_TERMS = [
     "Performance Engineer",
     "Performance Architect",
     "Performance Test Lead",
-    "Performance" 
+    "Performance"
 ]
 
 LOCATION = "United States"
-REMOTE_ONLY = False # <-- CONSIDER CHANGING TO FALSE IF YOU WANT HYBRID/IN-OFFICE JOBS
+REMOTE_ONLY = False  # Keep FALSE to allow both remote & onsite jobs
 
 # STRICT TITLE ALLOW LIST (case-insensitive regex)
 ALLOWED_TITLE_PATTERNS = [
-    # Existing Engineering/Test roles
+    # Core roles
     r"performance test engineer",
     r"performance engineer",
     r"sr\.?\s*performance test engineer",
@@ -27,15 +27,15 @@ ALLOWED_TITLE_PATTERNS = [
     r"performance architect",
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
-    r"performance test lead", 
-    
-    # NEW: Broadened patterns to catch Specialist, Consultant, and acronyms (SMTS)
-    r"performance\s*specialist",      # Catches "Client Performance Specialist"
+    r"performance test lead",
+
+    # Expanded patterns
+    r"performance\s*specialist",
     r"performance\s*consultant",
-    r"performance\s*smts",            # Catches acronyms like SMTS
+    r"performance\s*smts",
     r"performance\s*mts",
-    
-    # General catch-all patterns (keep these)
+
+    # Broad real-world patterns
     r"performance.*engineer",
     r"engineer.*performance",
     r"performance test",
@@ -45,7 +45,7 @@ ALLOWED_TITLE_PATTERNS = [
     r"staff.*performance",
     r"principal.*performance",
     r"sr.*performance",
-    r".*performance.*" 
+    r".*performance.*"
 ]
 
 # Email Secrets
@@ -55,10 +55,6 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASS = os.getenv("SMTP_PASS")
-
-# LinkedIn Secrets (Jobspy uses these if present)
-LINKEDIN_EMAIL = os.getenv("LINKEDIN_EMAIL")
-LINKEDIN_PASSWORD = os.getenv("LINKEDIN_PASSWORD")
 
 # ---------------------------------------
 
@@ -71,28 +67,24 @@ def gather_jobs():
             site_name=[
                 "linkedin",
                 "indeed",
-                #"glassdoor",
-                "google"
+                "google"  # Google Jobs → Workday + Dice mirrors
             ],
             search_term=term,
             location=LOCATION,
-            results_wanted=200, # <-- CHANGE 1: Increased results per search term
-            hours_old=72,      # <-- CHANGE 2: Relaxed from 24h to 72h (3 days)
+            results_wanted=200,
+            hours_old=72
         )
-        # Handle case where scrape_jobs returns None
-        if df is not None:
+
+        if df is not None and not df.empty:
             all_results.append(df)
-            
-# ... (rest of the functions remain the same)
-# (Your `build_html_email`, `send_email`, and `main` functions are unchanged)
 
     if not all_results:
-        return pd.DataFrame() 
+        return pd.DataFrame()
 
     df = pd.concat(all_results, ignore_index=True)
     df.columns = [c.lower() for c in df.columns]
 
-    # -------- Remote filter --------
+    # -------- Remote filter (optional) --------
     if REMOTE_ONLY and "is_remote" in df.columns:
         df = df[df["is_remote"] == True]
 
@@ -105,7 +97,7 @@ def gather_jobs():
     df["source"] = df["job_url"].apply(
         lambda x: "Workday"
         if "workdayjobs" in str(x).lower()
-        else "LinkedIn/Other"
+        else "LinkedIn / Other"
     )
 
     # Deduplicate
@@ -119,31 +111,36 @@ def build_html_email(df: pd.DataFrame) -> str:
         return """
         <html>
             <body>
-                <h3>No matching Performance Engineering jobs found in the last 24 hours.</h3>
+                <h3>No matching Performance Engineering jobs found.</h3>
             </body>
         </html>
         """
 
-    rows = ""
-    for _, row in df.iterrows():
-        rows += f"""
-        <tr>
-            <td>{row.get('source','')}</td>
-            <td>{row.get('company','')}</td>
-            <td>{row.get('title','')}</td>
-            <td>
-                <a href="{row.get('job_url','')}" target="_blank">
-                    View Job
-                </a>
-            </td>
-        </tr>
-        """
+    # Split into Remote vs Onsite/Hybrid
+    remote_df = df[df.get("is_remote") == True]
+    onsite_df = df[df.get("is_remote") != True]
 
-    return f"""
-    <html>
-    <body>
-        <h2>Daily Performance Engineering Job Alerts</h2>
-        <p><b>Titles filtered strictly as requested</b></p>
+    def build_table(title, data):
+        if data.empty:
+            return f"<h3>{title}</h3><p>No jobs found.</p>"
+
+        rows = ""
+        for _, row in data.iterrows():
+            rows += f"""
+            <tr>
+                <td>{row.get('source','')}</td>
+                <td>{row.get('company','')}</td>
+                <td>{row.get('title','')}</td>
+                <td>
+                    <a href="{row.get('job_url','')}" target="_blank">
+                        View Job
+                    </a>
+                </td>
+            </tr>
+            """
+
+        return f"""
+        <h3>{title} ({len(data)})</h3>
         <table border="1" cellpadding="8" cellspacing="0">
             <tr>
                 <th>Source</th>
@@ -153,6 +150,18 @@ def build_html_email(df: pd.DataFrame) -> str:
             </tr>
             {rows}
         </table>
+        <br/>
+        """
+
+    return f"""
+    <html>
+    <body>
+        <h2>Daily Performance Engineering Job Alerts</h2>
+
+        {build_table("🟢 Remote Roles", remote_df)}
+
+        {build_table("🔵 Onsite / Hybrid Roles", onsite_df)}
+
         <p><b>Total jobs:</b> {len(df)}</p>
     </body>
     </html>
@@ -164,7 +173,7 @@ def send_email(html_body, count):
     msg["Subject"] = f"Performance Engineering Jobs ({count})"
     msg["From"] = SENDER
     msg["To"] = RECIPIENT
-    msg.set_content("HTML email required")
+    msg.set_content("This email requires an HTML-capable client.")
     msg.add_alternative(html_body, subtype="html")
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
