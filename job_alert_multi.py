@@ -72,7 +72,7 @@ def gather_jobs():
             search_term=term,
             location=LOCATION,
             results_wanted=200,
-            hours_old=72
+            hours_old=48
         )
 
         if df is not None and not df.empty:
