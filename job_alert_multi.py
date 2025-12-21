@@ -19,7 +19,6 @@ REMOTE_ONLY = False  # Keep FALSE to allow both remote & onsite jobs
 
 # STRICT TITLE ALLOW LIST (case-insensitive regex)
 ALLOWED_TITLE_PATTERNS = [
-    # Core roles
     r"performance test engineer",
     r"performance engineer",
     r"sr\.?\s*performance test engineer",
@@ -28,18 +27,13 @@ ALLOWED_TITLE_PATTERNS = [
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
     r"performance test lead",
-
-    # Expanded patterns
     r"performance\s*specialist",
     r"performance\s*consultant",
     r"performance\s*smts",
     r"performance\s*mts",
-
-    # Broad real-world patterns
     r"performance.*engineer",
     r"engineer.*performance",
     r"performance test",
-    r"performance architect",
     r"performance lead",
     r"lead.*performance",
     r"staff.*performance",
@@ -72,7 +66,7 @@ def gather_jobs():
             search_term=term,
             location=LOCATION,
             results_wanted=200,
-            hours_old=48
+            hours_old=48  # ✅ Last 48 hours ONLY
         )
 
         if df is not None and not df.empty:
@@ -84,7 +78,7 @@ def gather_jobs():
     df = pd.concat(all_results, ignore_index=True)
     df.columns = [c.lower() for c in df.columns]
 
-    # -------- Remote filter (optional) --------
+    # -------- Remote filter --------
     if REMOTE_ONLY and "is_remote" in df.columns:
         df = df[df["is_remote"] == True]
 
@@ -103,6 +97,15 @@ def gather_jobs():
     # Deduplicate
     df.drop_duplicates(subset=["title", "company", "job_url"], inplace=True)
 
+    # -------- Sort by latest posting first --------
+    date_columns = ["date_posted", "posted_date", "posted_at"]
+    for col in date_columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+            df.sort_values(by=col, ascending=False, inplace=True)
+            break
+
+    df.reset_index(drop=True, inplace=True)
     return df
 
 
@@ -111,12 +114,11 @@ def build_html_email(df: pd.DataFrame) -> str:
         return """
         <html>
             <body>
-                <h3>No matching Performance Engineering jobs found.</h3>
+                <h3>No matching Performance Engineering jobs found in the last 48 hours.</h3>
             </body>
         </html>
         """
 
-    # Split into Remote vs Onsite/Hybrid
     remote_df = df[df.get("is_remote") == True]
     onsite_df = df[df.get("is_remote") != True]
 
@@ -173,7 +175,7 @@ def send_email(html_body, count):
     msg["Subject"] = f"Performance Engineering Jobs ({count})"
     msg["From"] = SENDER
     msg["To"] = RECIPIENT
-    msg.set_content("This email requires an HTML-capable client.")
+    msg.set_content("This email requires an HTML-capable email client.")
     msg.add_alternative(html_body, subtype="html")
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
