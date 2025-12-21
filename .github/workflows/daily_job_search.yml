@@ -2,8 +2,9 @@ name: Daily Job Search Alert
 
 on:
   schedule:
-    - cron: "0 5 * * *"   # 12:00 AM EST (05:00 UTC)
-    - cron: "0 18 * * *"  # 1:00 PM EST (18:00 UTC)
+    - cron: "0 5 * * *"    # 12:00 AM EST
+    - cron: "0 14 * * *"   # 9:00 AM EST
+    - cron: "0 18 * * *"   # 1:00 PM EST
   workflow_dispatch:
 
 jobs:
@@ -17,7 +18,7 @@ jobs:
         run: |
           echo "python-jobspy" > requirements.txt
           echo "pandas" >> requirements.txt
-          
+
           sudo apt-get update
           sudo apt-get install -y chromium-browser
 
