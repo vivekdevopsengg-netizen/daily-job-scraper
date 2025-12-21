@@ -3,6 +3,7 @@ import smtplib
 from email.message import EmailMessage
 import pandas as pd
 from jobspy import scrape_jobs
+from datetime import datetime, timezone
 
 # ---------------- CONFIG ----------------
 
@@ -15,9 +16,8 @@ SEARCH_TERMS = [
 ]
 
 LOCATION = "United States"
-REMOTE_ONLY = False  # Keep FALSE to allow both remote & onsite jobs
+REMOTE_ONLY = False
 
-# STRICT TITLE ALLOW LIST (case-insensitive regex)
 ALLOWED_TITLE_PATTERNS = [
     r"performance test engineer",
     r"performance engineer",
@@ -27,18 +27,7 @@ ALLOWED_TITLE_PATTERNS = [
     r"lead\s*-?\s*performance test engineer",
     r"lead performance test engineer",
     r"performance test lead",
-    r"performance\s*specialist",
-    r"performance\s*consultant",
-    r"performance\s*smts",
-    r"performance\s*mts",
     r"performance.*engineer",
-    r"engineer.*performance",
-    r"performance test",
-    r"performance lead",
-    r"lead.*performance",
-    r"staff.*performance",
-    r"principal.*performance",
-    r"sr.*performance",
     r".*performance.*"
 ]
 
@@ -53,22 +42,28 @@ SMTP_PASS = os.getenv("SMTP_PASS")
 # ---------------------------------------
 
 
+def compute_posted_ago(dt):
+    if pd.isna(dt):
+        return "Unknown"
+    now = datetime.now(timezone.utc)
+    delta = now - dt
+    hours = int(delta.total_seconds() // 3600)
+    if hours < 24:
+        return f"{hours} hours ago"
+    return f"{hours // 24} days ago"
+
+
 def gather_jobs():
     all_results = []
 
     for term in SEARCH_TERMS:
         df = scrape_jobs(
-            site_name=[
-                "linkedin",
-                "indeed",
-                "google"  # Google Jobs → Workday + Dice mirrors
-            ],
+            site_name=["linkedin", "indeed", "google"],
             search_term=term,
             location=LOCATION,
             results_wanted=200,
-            hours_old=48  # ✅ Last 48 hours ONLY
+            hours_old=48
         )
-
         if df is not None and not df.empty:
             all_results.append(df)
 
@@ -78,46 +73,39 @@ def gather_jobs():
     df = pd.concat(all_results, ignore_index=True)
     df.columns = [c.lower() for c in df.columns]
 
-    # -------- Remote filter --------
-    if REMOTE_ONLY and "is_remote" in df.columns:
-        df = df[df["is_remote"] == True]
-
-    # -------- STRICT TITLE FILTER --------
+    # -------- Title filter --------
     title_regex = "|".join(ALLOWED_TITLE_PATTERNS)
-    if "title" in df.columns:
-        df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
+    df = df[df["title"].str.lower().str.contains(title_regex, regex=True, na=False)]
 
     # -------- Source tagging --------
     df["source"] = df["job_url"].apply(
-        lambda x: "Workday"
-        if "workdayjobs" in str(x).lower()
-        else "LinkedIn / Other"
+        lambda x: "Workday" if "workdayjobs" in str(x).lower() else "LinkedIn / Other"
     )
 
     # Deduplicate
     df.drop_duplicates(subset=["title", "company", "job_url"], inplace=True)
 
-    # -------- Sort by latest posting first --------
-    date_columns = ["date_posted", "posted_date", "posted_at"]
-    for col in date_columns:
+    # -------- Normalize date column --------
+    for col in ["date_posted", "posted_date", "posted_at"]:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-            df.sort_values(by=col, ascending=False, inplace=True)
+            df["posted_dt"] = pd.to_datetime(df[col], errors="coerce", utc=True)
             break
+    else:
+        df["posted_dt"] = pd.NaT
+
+    # -------- Sort latest first --------
+    df.sort_values(by="posted_dt", ascending=False, inplace=True)
+
+    # -------- Human readable age --------
+    df["posted"] = df["posted_dt"].apply(compute_posted_ago)
 
     df.reset_index(drop=True, inplace=True)
     return df
 
 
-def build_html_email(df: pd.DataFrame) -> str:
+def build_html_email(df):
     if df.empty:
-        return """
-        <html>
-            <body>
-                <h3>No matching Performance Engineering jobs found in the last 48 hours.</h3>
-            </body>
-        </html>
-        """
+        return "<h3>No matching Performance Engineering jobs found in last 48 hours.</h3>"
 
     remote_df = df[df.get("is_remote") == True]
     onsite_df = df[df.get("is_remote") != True]
@@ -130,40 +118,34 @@ def build_html_email(df: pd.DataFrame) -> str:
         for _, row in data.iterrows():
             rows += f"""
             <tr>
-                <td>{row.get('source','')}</td>
-                <td>{row.get('company','')}</td>
-                <td>{row.get('title','')}</td>
-                <td>
-                    <a href="{row.get('job_url','')}" target="_blank">
-                        View Job
-                    </a>
-                </td>
+                <td>{row['posted']}</td>
+                <td>{row['source']}</td>
+                <td>{row['company']}</td>
+                <td>{row['title']}</td>
+                <td><a href="{row['job_url']}" target="_blank">View Job</a></td>
             </tr>
             """
 
         return f"""
         <h3>{title} ({len(data)})</h3>
-        <table border="1" cellpadding="8" cellspacing="0">
+        <table border="1" cellpadding="6" cellspacing="0">
             <tr>
+                <th>Posted</th>
                 <th>Source</th>
                 <th>Company</th>
                 <th>Title</th>
                 <th>Link</th>
             </tr>
             {rows}
-        </table>
-        <br/>
+        </table><br/>
         """
 
     return f"""
     <html>
     <body>
-        <h2>Daily Performance Engineering Job Alerts</h2>
-
+        <h2>Daily Performance Engineering Job Alerts (Last 48 Hours)</h2>
         {build_table("🟢 Remote Roles", remote_df)}
-
         {build_table("🔵 Onsite / Hybrid Roles", onsite_df)}
-
         <p><b>Total jobs:</b> {len(df)}</p>
     </body>
     </html>
@@ -175,7 +157,7 @@ def send_email(html_body, count):
     msg["Subject"] = f"Performance Engineering Jobs ({count})"
     msg["From"] = SENDER
     msg["To"] = RECIPIENT
-    msg.set_content("This email requires an HTML-capable email client.")
+    msg.set_content("HTML email required")
     msg.add_alternative(html_body, subtype="html")
 
     with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
@@ -186,8 +168,7 @@ def send_email(html_body, count):
 
 def main():
     df = gather_jobs()
-    html_body = build_html_email(df)
-    send_email(html_body, len(df))
+    send_email(build_html_email(df), len(df))
     print(f"Email sent with {len(df)} jobs.")
 
 
