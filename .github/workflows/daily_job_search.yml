@@ -2,9 +2,9 @@ name: Daily Job Search Alert
 
 on:
   schedule:
-    - cron: "0 5 * * *"    # 12:00 AM EST
-    - cron: "0 14 * * *"   # 9:00 AM EST
-    - cron: "0 18 * * *"   # 1:00 PM EST
+    - cron: "15 5 * * *"    # 12:15 AM EST
+    - cron: "15 14 * * *"   # 9:15 AM EST
+    - cron: "15 18 * * *"  # 1:15 PM EST
   workflow_dispatch:
 
 jobs:
