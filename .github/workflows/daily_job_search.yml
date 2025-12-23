@@ -4,7 +4,8 @@ on:
   schedule:
     - cron: "15 5 * * *"    # 12:15 AM EST
     - cron: "15 14 * * *"   # 9:15 AM EST
-    - cron: "15 18 * * *"  # 1:15 PM EST
+    - cron: "15 18 * * *"   # 1:15 PM EST
+    - cron: "15 21 * * *"   # 4:15 PM EST
   workflow_dispatch:
 
 jobs:
