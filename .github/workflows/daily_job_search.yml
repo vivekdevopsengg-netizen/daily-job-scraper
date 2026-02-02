@@ -1,11 +1,16 @@
 name: Daily Job Search Alert
 
 on:
+  # Primary business schedules (EST → UTC)
   schedule:
     - cron: "15 5 * * *"    # 12:15 AM EST
     - cron: "15 14 * * *"   # 9:15 AM EST
     - cron: "15 18 * * *"   # 1:15 PM EST
     - cron: "15 21 * * *"   # 4:15 PM EST
+
+    # Safety watchdog (every 20 minutes)
+    - cron: "*/20 * * * *"
+
   workflow_dispatch:
 
 jobs:
@@ -13,27 +18,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # ---------------------------------------------------------
+      # STEP 1: Decide whether this run should actually execute
+      # ---------------------------------------------------------
+      - name: Check if last scheduled run failed
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: context.workflow,
+              per_page: 5
+            });
 
-      - name: Create requirements.txt and Install System Dependencies
+            const lastCompleted = runs.data.workflow_runs.find(
+              r => r.status === "completed"
+            );
+
+            if (!lastCompleted) {
+              core.setOutput("run", "true");
+              return;
+            }
+
+            if (lastCompleted.conclusion !== "success") {
+              core.setOutput("run", "true");
+            } else {
+              core.setOutput("run", "false");
+            }
+
+      - name: Skip if last run succeeded
+        if: steps.gate.outputs.run == 'false'
         run: |
-          echo "python-jobspy" > requirements.txt
-          echo "pandas" >> requirements.txt
+          echo "Last run successful — skipping execution."
 
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser
+      # ---------------------------------------------------------
+      # STEP 2: Actual job (runs ONLY when needed)
+      # ---------------------------------------------------------
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
 
       - name: Set up Python
+        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
+      - name: Install system dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+
       - name: Install Python dependencies
+        if: steps.gate.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install python-jobspy pandas
 
       - name: Run job scraper
+        if: steps.gate.outputs.run == 'true'
         env:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
