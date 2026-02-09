@@ -8,7 +8,7 @@ on:
     - cron: "15 18 * * *"   # 1:15 PM EST
     - cron: "15 21 * * *"   # 4:15 PM EST
 
-    # Safety watchdog (retry window)
+    # Safety watchdog (retry window every 20 minutes)
     - cron: "*/20 * * * *"
 
   workflow_dispatch:
@@ -24,47 +24,56 @@ jobs:
 
     steps:
       # ---------------------------------------------------------
-      # STEP 1: Decide if this run should actually execute
+      # STEP 1: Decide whether this run should actually execute
       # ---------------------------------------------------------
       - name: Check last completed workflow run
         id: gate
         uses: actions/github-script@v7
-        continue-on-error: true
         with:
           script: |
-            const runs = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: "daily-job-search.yml", // 👈 FILE NAME
-              per_page: 5
-            });
+            try {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: "daily_job_search.yml", // ✅ EXACT FILE NAME
+                per_page: 5
+              });
 
-            const lastCompleted = runs.data.workflow_runs.find(
-              r => r.status === "completed"
-            );
+              const lastCompleted = runs.data.workflow_runs.find(
+                r => r.status === "completed"
+              );
 
-            // If nothing completed yet → run
-            if (!lastCompleted) {
+              // If nothing completed yet → allow execution
+              if (!lastCompleted) {
+                core.setOutput("run", "true");
+                return;
+              }
+
+              // Retry ONLY if last completed run failed
+              if (lastCompleted.conclusion !== "success") {
+                core.setOutput("run", "true");
+              } else {
+                core.setOutput("run", "false");
+              }
+
+            } catch (err) {
+              // ENTERPRISE FAIL-OPEN BEHAVIOR
+              // Never block business job due to metadata/API failure
+              console.log("Gate check failed — allowing execution:", err.message);
               core.setOutput("run", "true");
-              return;
-            }
-
-            // Retry ONLY if last completed run failed
-            if (lastCompleted.conclusion !== "success") {
-              core.setOutput("run", "true");
-            } else {
-              core.setOutput("run", "false");
             }
 
       - name: Skip execution (last run successful)
         if: steps.gate.outputs.run == 'false'
-        run: echo "✅ Last run successful — skipping execution."
+        run: |
+          echo "✅ Last run successful — skipping execution."
 
       # ---------------------------------------------------------
       # STEP 2: Actual job (runs ONLY when needed)
       # ---------------------------------------------------------
-      - uses: actions/checkout@v4
+      - name: Checkout repo
         if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
 
       - name: Set up Python
         if: steps.gate.outputs.run == 'true'
@@ -95,4 +104,5 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
           LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
-        run: python job_alert_multi.py
+        run: |
+          python job_alert_multi.py
