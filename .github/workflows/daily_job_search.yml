@@ -1,17 +1,22 @@
 name: Daily Job Search Alert
 
 on:
-  # Primary business schedules (EST → UTC)
+  # Business schedules (EST → UTC)
   schedule:
     - cron: "15 5 * * *"    # 12:15 AM EST
     - cron: "15 14 * * *"   # 9:15 AM EST
     - cron: "15 18 * * *"   # 1:15 PM EST
     - cron: "15 21 * * *"   # 4:15 PM EST
 
-    # Safety watchdog (every 20 minutes)
+    # Safety watchdog (retry window)
     - cron: "*/20 * * * *"
 
   workflow_dispatch:
+
+# Prevent overlapping executions
+concurrency:
+  group: job-search-alert
+  cancel-in-progress: false
 
 jobs:
   job-search:
@@ -19,17 +24,18 @@ jobs:
 
     steps:
       # ---------------------------------------------------------
-      # STEP 1: Decide whether this run should actually execute
+      # STEP 1: Decide if this run should actually execute
       # ---------------------------------------------------------
-      - name: Check if last scheduled run failed
+      - name: Check last completed workflow run
         id: gate
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
             const runs = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: context.workflow,
+              workflow_id: "daily-job-search.yml", // 👈 FILE NAME
               per_page: 5
             });
 
@@ -37,21 +43,22 @@ jobs:
               r => r.status === "completed"
             );
 
+            // If nothing completed yet → run
             if (!lastCompleted) {
               core.setOutput("run", "true");
               return;
             }
 
+            // Retry ONLY if last completed run failed
             if (lastCompleted.conclusion !== "success") {
               core.setOutput("run", "true");
             } else {
               core.setOutput("run", "false");
             }
 
-      - name: Skip if last run succeeded
+      - name: Skip execution (last run successful)
         if: steps.gate.outputs.run == 'false'
-        run: |
-          echo "Last run successful — skipping execution."
+        run: echo "✅ Last run successful — skipping execution."
 
       # ---------------------------------------------------------
       # STEP 2: Actual job (runs ONLY when needed)
