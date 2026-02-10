@@ -1,19 +1,16 @@
 name: Daily Job Search Alert
 
 on:
-  # Business schedules (EST → UTC)
+  # Fixed business windows (EST → UTC)
   schedule:
     - cron: "15 5 * * *"    # 12:15 AM EST
     - cron: "15 14 * * *"   # 9:15 AM EST
     - cron: "15 18 * * *"   # 1:15 PM EST
     - cron: "15 21 * * *"   # 4:15 PM EST
 
-    # Safety watchdog (retry window every 20 minutes)
-    - cron: "*/20 * * * *"
-
   workflow_dispatch:
 
-# Prevent overlapping executions
+# Prevent overlapping runs in the same window
 concurrency:
   group: job-search-alert
   cancel-in-progress: false
@@ -21,80 +18,31 @@ concurrency:
 jobs:
   job-search:
     runs-on: ubuntu-latest
+    timeout-minutes: 90   # Enough for retries + sleeps
 
     steps:
-      # ---------------------------------------------------------
-      # STEP 1: Decide whether this run should actually execute
-      # ---------------------------------------------------------
-      - name: Check last completed workflow run
-        id: gate
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              const runs = await github.rest.actions.listWorkflowRuns({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: "daily_job_search.yml", // ✅ EXACT FILE NAME
-                per_page: 5
-              });
-
-              const lastCompleted = runs.data.workflow_runs.find(
-                r => r.status === "completed"
-              );
-
-              // If nothing completed yet → allow execution
-              if (!lastCompleted) {
-                core.setOutput("run", "true");
-                return;
-              }
-
-              // Retry ONLY if last completed run failed
-              if (lastCompleted.conclusion !== "success") {
-                core.setOutput("run", "true");
-              } else {
-                core.setOutput("run", "false");
-              }
-
-            } catch (err) {
-              // ENTERPRISE FAIL-OPEN BEHAVIOR
-              // Never block business job due to metadata/API failure
-              console.log("Gate check failed — allowing execution:", err.message);
-              core.setOutput("run", "true");
-            }
-
-      - name: Skip execution (last run successful)
-        if: steps.gate.outputs.run == 'false'
-        run: |
-          echo "✅ Last run successful — skipping execution."
-
-      # ---------------------------------------------------------
-      # STEP 2: Actual job (runs ONLY when needed)
-      # ---------------------------------------------------------
       - name: Checkout repo
-        if: steps.gate.outputs.run == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
-        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
       - name: Install system dependencies
-        if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser
 
       - name: Install Python dependencies
-        if: steps.gate.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install python-jobspy pandas
 
-      - name: Run job scraper
-        if: steps.gate.outputs.run == 'true'
+      # ---------------------------------------------------------
+      # Run scraper with controlled retries
+      # ---------------------------------------------------------
+      - name: Run job scraper with retries
         env:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
@@ -105,4 +53,28 @@ jobs:
           LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
           LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
         run: |
-          python job_alert_multi.py
+          set +e
+
+          MAX_RETRIES=3
+          ATTEMPT=1
+
+          while [ $ATTEMPT -le $MAX_RETRIES ]; do
+            echo "▶ Attempt $ATTEMPT of $MAX_RETRIES"
+            python job_alert_multi.py
+            EXIT_CODE=$?
+
+            if [ $EXIT_CODE -eq 0 ]; then
+              echo "✅ Job completed successfully"
+              exit 0
+            fi
+
+            if [ $ATTEMPT -lt $MAX_RETRIES ]; then
+              echo "⚠️ Job failed (exit code $EXIT_CODE). Retrying in 20 minutes..."
+              sleep 1200
+            fi
+
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          echo "❌ Job failed after $MAX_RETRIES attempts"
+          exit 1
