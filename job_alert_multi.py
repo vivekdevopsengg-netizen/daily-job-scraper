@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from jobspy import scrape_jobs
 
-# ---------------- LOGGING ----------------
+# ---------------- LOGGING --------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
