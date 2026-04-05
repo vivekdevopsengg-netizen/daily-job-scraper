@@ -1,7 +1,7 @@
 name: Daily Job Search Alert
 
 on:
-  # Fixed business windows (EST → UTC)
+  # Fixed business windows (EST → UTC)--
   schedule:
     - cron: "15 5 * * *"    # 12:15 AM EST
     - cron: "15 14 * * *"   # 9:15 AM EST
