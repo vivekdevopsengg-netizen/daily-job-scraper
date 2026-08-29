@@ -1,3 +1,4 @@
+#updated on 08/29
 import os
 import smtplib
 import logging
